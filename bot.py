@@ -3,6 +3,7 @@
 
 import os
 import urllib
+import subprocess
 from time import sleep
 from selenium import webdriver
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
@@ -18,17 +19,25 @@ logger = logging.getLogger(__name__)
 
 
 token = os.environ.get('TELEGRAM_TOKEN')
-allowed_ids = map(int, os.environ.get('ALLOWED_IDS', '').split(','))
-allowed_usernames = os.environ.get('ALLOWED_USERNAMES', '').split(',')
+allowed_chats = map(int, os.environ.get('ALLOWED_CHATS', '').split(','))
+allowed_users = os.environ.get('ALLOWED_USERS', '').split(',')
+superusers = os.environ.get('SUPERUSERS', '').split(',')
 pgm_url = os.environ.get('PGM_URL', 'http://127.0.0.1:5000')
 
 
-def filter_replies(handler):
+def allowed_only(handler):
     def wrapper(bot, update):
         if (
-            update.message.chat_id in allowed_ids or
-            update.message.from_user.username in allowed_usernames
+            update.message.chat_id in allowed_chats or
+            update.message.from_user.username in allowed_users
         ):
+            return handler(bot, update)
+    return wrapper
+
+
+def superusers_only(handler):
+    def wrapper(bot, update):
+        if update.message.from_user.username in superusers:
             return handler(bot, update)
     return wrapper
 
@@ -46,20 +55,20 @@ def log_update(handler):
 
 
 @log_update
-@filter_replies
+@allowed_only
 def help(bot, update):
     bot.sendMessage(update.message.chat_id, text="""Commands: /screenshot""")
 
 
 @log_update
-@filter_replies
+@allowed_only
 def screenshot(bot, update):
     screenshot = take_screenshot(pgm_url)
     bot.sendPhoto(update.message.chat_id, photo=StringIO(screenshot))
 
 
 @log_update
-@filter_replies
+@allowed_only
 def set_location(bot, update):
     message = update.message
     try:
@@ -71,6 +80,15 @@ def set_location(bot, update):
         bot.sendMessage(message.chat_id, text="""Location updated!""")
     except:
         bot.sendMessage(message.chat_id, text="""Failed to update location!""")
+
+
+@log_update
+@superusers_only
+def ifconfig(bot, update):
+    bot.sendMessage(
+        update.message.chat_id,
+        subprocess.check_output('ifconfig')
+    )
 
 
 def noop(*args, **kwargs):
@@ -88,6 +106,7 @@ def main():
     dp.add_handler(CommandHandler('start', help))
     dp.add_handler(CommandHandler('help', help))
     dp.add_handler(CommandHandler('screenshot', screenshot))
+    dp.add_handler(CommandHandler('ifconfig', ifconfig))
     dp.add_handler(MessageHandler([Filters.text], log_update(noop)))
     dp.add_handler(MessageHandler([Filters.location], set_location))
     dp.add_error_handler(error)
