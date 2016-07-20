@@ -39,13 +39,14 @@ def allowed_only(handler):
             return handler(bot, update)
         for chat_id in allowed_chats:
             try:
-                bot.getChatMember(chat_id, update.message.from_user.id)
-                logger.info(
-                    'Adding %s to known users',
-                    update.message.from_user.username,
-                )
-                known_allowed_users[update.message.from_user.id] = True
-                break
+                cm = bot.getChatMember(chat_id, update.message.from_user.id)
+                if cm.status not in ('left', 'kicked'):
+                    logger.info(
+                        'Adding %s to known users',
+                        update.message.from_user.username,
+                    )
+                    known_allowed_users[update.message.from_user.id] = True
+                    break
             except BadRequest:
                 pass
         else:
