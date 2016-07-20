@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import urllib
 from time import sleep
 from selenium import webdriver
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 token = os.environ.get('TELEGRAM_TOKEN')
 allowed_ids = map(int, os.environ.get('ALLOWED_IDS', '').split(','))
 allowed_usernames = os.environ.get('ALLOWED_USERNAMES', '').split(',')
-screenshot_url = os.environ.get('SCREENSHOT_URL', 'http://127.0.0.1:5000/')
+pgm_url = os.environ.get('PGM_URL', 'http://127.0.0.1:5000')
 
 
 def filter_replies(handler):
@@ -32,24 +33,48 @@ def filter_replies(handler):
     return wrapper
 
 
+def log_update(handler):
+    def wrapper(bot, update):
+        logger.info(
+            '%s - %s - %s',
+            update.message.chat_id,
+            update.message.from_user.username,
+            update.message.text or update.message.location
+        )
+        return handler(bot, update)
+    return wrapper
+
+
+@log_update
 @filter_replies
 def help(bot, update):
     bot.sendMessage(update.message.chat_id, text="""Commands: /screenshot""")
 
 
+@log_update
 @filter_replies
 def screenshot(bot, update):
-    screenshot = take_screenshot(screenshot_url)
+    screenshot = take_screenshot(pgm_url)
     bot.sendPhoto(update.message.chat_id, photo=StringIO(screenshot))
 
 
-def message(bot, update):
-    logger.info(
-        '%s - %s - %s',
-        update.message.chat_id,
-        update.message.from_user.username,
-        update.message.text
-    )
+@log_update
+@filter_replies
+def set_location(bot, update):
+    message = update.message
+    try:
+        lat = message.location.latitude
+        lon = message.location.longitude
+        urllib.urlopen(
+            pgm_url + '/next_loc?lat=%s&lon=%s' % (lat, lon)
+        ).read()
+        bot.sendMessage(message.chat_id, text="""Location updated!""")
+    except:
+        bot.sendMessage(message.chat_id, text="""Failed to update location!""")
+
+
+def noop(*args, **kwargs):
+    pass
 
 
 def error(bot, update, error):
@@ -63,7 +88,8 @@ def main():
     dp.add_handler(CommandHandler('start', help))
     dp.add_handler(CommandHandler('help', help))
     dp.add_handler(CommandHandler('screenshot', screenshot))
-    dp.add_handler(MessageHandler([Filters.text], message))
+    dp.add_handler(MessageHandler([Filters.text], log_update(noop)))
+    dp.add_handler(MessageHandler([Filters.location], set_location))
     dp.add_error_handler(error)
 
     updater.start_polling()
