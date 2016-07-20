@@ -7,6 +7,7 @@ import subprocess
 from time import sleep
 from selenium import webdriver
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.error import BadRequest
 from StringIO import StringIO
 import logging
 
@@ -25,13 +26,39 @@ superusers = os.environ.get('SUPERUSERS', '').split(',')
 pgm_url = os.environ.get('PGM_URL', 'http://127.0.0.1:5000')
 
 
+known_allowed_users = {}
+
+
 def allowed_only(handler):
     def wrapper(bot, update):
         if (
             update.message.chat_id in allowed_chats or
-            update.message.from_user.username in allowed_users
+            update.message.from_user.username in allowed_users or
+            update.message.from_user.id in known_allowed_users
         ):
             return handler(bot, update)
+        for chat_id in allowed_chats:
+            try:
+                bot.getChatMember(chat_id, update.message.from_user.id)
+                logger.info(
+                    'Adding %s to known users',
+                    update.message.from_user.username,
+                )
+                known_allowed_users[update.message.from_user.id] = True
+                break
+            except BadRequest:
+                pass
+        else:
+            logger.warn(
+                '%s attempted to use bot',
+                update.message.from_user.username,
+            )
+            bot.sendMessage(
+                update.message.chat_id,
+                text="""Бот доступен только для Saratov Mystic"""
+            )
+            return
+        return handler(bot, update)
     return wrapper
 
 
@@ -39,6 +66,11 @@ def superusers_only(handler):
     def wrapper(bot, update):
         if update.message.from_user.username in superusers:
             return handler(bot, update)
+        else:
+            logger.warn(
+                '%s attempted to use superuser command',
+                update.message.from_user.username,
+            )
     return wrapper
 
 
@@ -57,7 +89,7 @@ def log_update(handler):
 @log_update
 @allowed_only
 def help(bot, update):
-    bot.sendMessage(update.message.chat_id, text="""Commands: /screenshot""")
+    bot.sendMessage(update.message.chat_id, text="""Команды: /screenshot""")
 
 
 @log_update
@@ -77,9 +109,9 @@ def set_location(bot, update):
         urllib.urlopen(
             pgm_url + '/next_loc?lat=%s&lon=%s' % (lat, lon)
         ).read()
-        bot.sendMessage(message.chat_id, text="""Location updated!""")
+        bot.sendMessage(message.chat_id, text="""Локация обновлена!""")
     except:
-        bot.sendMessage(message.chat_id, text="""Failed to update location!""")
+        bot.sendMessage(message.chat_id, text="""Ошибка обновления локации!""")
 
 
 @log_update
@@ -101,6 +133,7 @@ def error(bot, update, error):
 
 def main():
     updater = Updater(token)
+
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler('start', help))
