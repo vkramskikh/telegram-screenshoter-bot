@@ -108,7 +108,7 @@ def set_location(bot, update):
         lat = message.location.latitude
         lon = message.location.longitude
         urllib.urlopen(
-            pgm_url + '/next_loc?lat=%s&lon=%s' % (lat, lon)
+            pgm_url + '/next_loc?lat=%s&lon=%s' % (lat, lon), ''
         ).read()
         bot.sendMessage(message.chat_id, text="""Локация обновлена!""")
     except:
