@@ -6,12 +6,14 @@ import urllib
 import subprocess
 from time import sleep
 from selenium import webdriver
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram.error import BadRequest
 from StringIO import StringIO
 import logging
 
 logging.basicConfig(
+    filename='bot.log',
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
@@ -27,6 +29,15 @@ pgm_url = os.environ.get('PGM_URL', 'http://127.0.0.1:5000')
 
 
 known_allowed_users = {}
+
+
+keyboard_markup = ReplyKeyboardMarkup(
+    keyboard=[[
+        KeyboardButton('/screenshot')
+    ]],
+    resize_keyboard=True,
+    selective=True
+)
 
 
 def allowed_only(handler):
@@ -90,14 +101,22 @@ def log_update(handler):
 @log_update
 @allowed_only
 def help(bot, update):
-    bot.sendMessage(update.message.chat_id, text="""Команды: /screenshot""")
+    bot.sendMessage(
+        update.message.chat_id,
+        text="""Команды: /screenshot""",
+        reply_markup=keyboard_markup
+    )
 
 
 @log_update
 @allowed_only
 def screenshot(bot, update):
     screenshot = take_screenshot(pgm_url)
-    bot.sendPhoto(update.message.chat_id, photo=StringIO(screenshot))
+    bot.sendPhoto(
+        update.message.chat_id,
+        photo=StringIO(screenshot),
+        reply_markup=keyboard_markup
+    )
 
 
 @log_update
@@ -110,9 +129,17 @@ def set_location(bot, update):
         urllib.urlopen(
             pgm_url + '/next_loc?lat=%s&lon=%s' % (lat, lon), ''
         ).read()
-        bot.sendMessage(message.chat_id, text="""Локация обновлена!""")
+        bot.sendMessage(
+            message.chat_id,
+            text="""Локация обновлена!""",
+            reply_markup=keyboard_markup
+        )
     except:
-        bot.sendMessage(message.chat_id, text="""Ошибка обновления локации!""")
+        bot.sendMessage(
+            message.chat_id,
+            text="""Ошибка обновления локации!""",
+            reply_markup=keyboard_markup
+        )
 
 
 @log_update
