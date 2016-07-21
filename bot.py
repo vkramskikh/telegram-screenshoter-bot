@@ -32,9 +32,10 @@ known_allowed_users = {}
 
 
 keyboard_markup = ReplyKeyboardMarkup(
-    keyboard=[[
-        KeyboardButton('/screenshot')
-    ]],
+    keyboard=[
+        [KeyboardButton('/screenshot')],
+        [KeyboardButton('Обновить местоположение', request_location=True)]
+    ],
     resize_keyboard=True,
     selective=True
 )
