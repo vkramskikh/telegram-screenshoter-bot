@@ -182,6 +182,7 @@ def start_pgm():
         pgm_cmd,
         stdout=sys.stdout,
         stderr=sys.stderr,
+        preexec_fn=os.setsid,
         shell=True
     )
 
