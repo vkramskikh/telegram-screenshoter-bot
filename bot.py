@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
+import atexit
 import urllib
+import signal
 import subprocess
 from time import sleep
 from selenium import webdriver
@@ -26,8 +29,8 @@ allowed_chats = map(int, os.environ.get('ALLOWED_CHATS', '').split(','))
 allowed_users = os.environ.get('ALLOWED_USERS', '').split(',')
 superusers = os.environ.get('SUPERUSERS', '').split(',')
 pgm_url = os.environ.get('PGM_URL', 'http://127.0.0.1:5000')
-
-
+pgm_cmd = os.environ.get('PGM_CMD')
+pgm_process = None
 known_allowed_users = {}
 
 
@@ -152,6 +155,19 @@ def ifconfig(bot, update):
     )
 
 
+@log_update
+@superusers_only
+def restart(bot, update):
+    stop_pgm()
+    sleep(3)
+    start_pgm()
+    bot.sendMessage(
+        update.message.chat_id,
+        'Готово!',
+        reply_markup=keyboard_markup
+    )
+
+
 def noop(*args, **kwargs):
     pass
 
@@ -160,15 +176,34 @@ def error(bot, update, error):
     logger.warn('Update "%s" caused error "%s"' % (update, error))
 
 
-def main():
-    updater = Updater(token)
+def start_pgm():
+    global pgm_process
+    pgm_process = subprocess.Popen(
+        pgm_cmd,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        shell=True
+    )
 
+
+def stop_pgm():
+    global pgm_process
+    if pgm_process is not None:
+        os.killpg(os.getpgid(pgm_process.pid), signal.SIGTERM)
+
+
+def main():
+    start_pgm()
+    atexit.register(stop_pgm)
+
+    updater = Updater(token)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler('start', help))
     dp.add_handler(CommandHandler('help', help))
     dp.add_handler(CommandHandler('screenshot', screenshot))
     dp.add_handler(CommandHandler('ifconfig', ifconfig))
+    dp.add_handler(CommandHandler('restart', restart))
     dp.add_handler(MessageHandler([Filters.text], log_update(noop)))
     dp.add_handler(MessageHandler([Filters.location], set_location))
     dp.add_error_handler(error)
